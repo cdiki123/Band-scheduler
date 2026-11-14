@@ -9,7 +9,7 @@ const slug = (s) =>
   s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
 
 export default async (req) => {
-  const store = getStore("band-scheduler");
+  const store = getStore({ name: "band-scheduler", consistency: "strong" });
   const path = new URL(req.url).pathname.replace(/^\/api\/?/, "");
   const key = Netlify.env.get("ADMIN_PASSWORD");
   const isAdmin = () => !!key && req.headers.get("x-admin-key") === key;
@@ -62,15 +62,16 @@ export default async (req) => {
       label: String(b.label || "").slice(0, 80),
     });
     await store.setJSON("options", options);
-    return json({ ok: true });
+    return json({ ok: true, options });
   }
 
   // DELETE /api/option/<id>  (admin)
   if (req.method === "DELETE" && path.startsWith("option/")) {
     if (!isAdmin()) return json({ error: "Organizer only" }, 401);
     const id = path.slice(7);
-    await store.setJSON("options", (await getOptions()).filter((o) => o.id !== id));
-    return json({ ok: true });
+    const options = (await getOptions()).filter((o) => o.id !== id);
+    await store.setJSON("options", options);
+    return json({ ok: true, options });
   }
 
   // DELETE /api/voter/<slug>  (admin)
