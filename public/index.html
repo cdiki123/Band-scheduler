@@ -63,7 +63,7 @@ function mine(){var me=S.name.toLowerCase();for(var i=0;i<S.votes.length;i++)if(
 function vote(oid,val){if(!S.name&&!ask())return;var cur=mine()[oid];
  api("POST","vote",{name:S.name,optionId:oid,value:cur===val?null:val}).then(load).catch(function(e){alert(e.message)})}
 function login(){var k=prompt("Organizer password:");if(!k)return;S.key=k;api("POST","admin",{},true).then(function(){S.admin=true;sessionStorage.setItem("bandKey",k);render()}).catch(function(e){S.key="";alert(e.message)})}
-function addOpt(e){e.preventDefault();api("POST","option",{date:$("fd").value,time:$("ft").value,hours:$("fh").value},true).then(function(){$("addf").reset();load()}).catch(function(e){alert(e.message)})}
+function addOpt(e){e.preventDefault();api("POST","option",{date:$("fd").value,time:$("ft").value,hours:$("fh").value},true).then(function(r){$("addf").reset();S.opts=r.options;render()}).catch(function(e){alert(e.message)})}
 function render(){
  var L=$("list");
  if(!S.loaded){L.innerHTML='<div class="msg">Loading…</div>';return}
@@ -84,17 +84,14 @@ function render(){
  $("count").textContent=total+(total===1?" person has":" people have")+" voted";
  $("links").innerHTML='<a id="chg">'+(S.name?"Voting as "+esc(S.name):"Set name")+'</a>'+(S.admin?"":'<a id="org">Organizer</a>');
  $("chg").onclick=ask;if($("org"))$("org").onclick=login;
- $("admin").innerHTML=S.admin?'<form id="addf"><label>Date<input type="date" id="fd" required></label><label>Start time<input type="time" id="ft" value="19:00" required></label><label class="full">Length (hours)<input type="number" id="fh" value="3" min="0.5" max="12" step="0.5"></label><button class="add full" type="submit">Add option</button></form>':"";
- if(S.admin)$("addf").onsubmit=addOpt;
+ if(S.admin&&!$("addf")){$("admin").innerHTML='<form id="addf"><label>Date<input type="date" id="fd" required></label><label>Start time<input type="time" id="ft" value="19:00" required></label><label class="full">Length (hours)<input type="number" id="fh" value="3" min="0.5" max="12" step="0.5"></label><button class="add full" type="submit">Add option</button></form>';$("addf").onsubmit=addOpt}
+ if(!S.admin)$("admin").innerHTML="";
  [].forEach.call(L.querySelectorAll("button[data-v]"),function(b){b.onclick=function(){vote(b.dataset.o,b.dataset.v)}});
  [].forEach.call(L.querySelectorAll(".cal"),function(a){a.onclick=function(e){e.stopPropagation()}});
- [].forEach.call(L.querySelectorAll("button[data-del]"),function(b){b.onclick=function(e){e.stopPropagation();if(confirm("Remove this option?"))api("DELETE","option/"+b.dataset.del,null,true).then(load)}});
+ [].forEach.call(L.querySelectorAll("button[data-del]"),function(b){b.onclick=function(e){e.stopPropagation();if(confirm("Remove this option?"))api("DELETE","option/"+b.dataset.del,null,true).then(function(r){S.opts=r.options;render()})}});
 }
 if(S.key)api("POST","admin",{},true).then(function(){S.admin=true;render()}).catch(function(){S.key="";sessionStorage.removeItem("bandKey")});
 render();load();setInterval(load,20000);
 </script>
 </body>
 </html>
-
-
-
