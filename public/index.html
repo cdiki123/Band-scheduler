@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Band Poll</title>
+<style>
+:root{--bg:#f0ede7;--card:#fff;--ink:#1f1d1a;--mute:#6b665e;--line:#e4dfd6;--g:#1f9d63;--gbg:#e3f4ea;--r:#d0453a;--rbg:#fbe7e4}
+@media (prefers-color-scheme:dark){:root{--bg:#121110;--card:#222120;--ink:#f1ede6;--mute:#a49e93;--line:#37352f;--g:#4fd08f;--gbg:#173325;--r:#f08a80;--rbg:#3a1d1a}}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.35 -apple-system,system-ui,"Segoe UI",Roboto,sans-serif;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+main{max-width:520px;margin:0 auto;padding:16px}
+.poll{background:var(--card);border-radius:16px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+h1{font-size:19px;margin:0 0 2px}.hint{color:var(--mute);font-size:14px;margin:0 0 12px}
+.opt{padding:10px 0;border-top:1px solid var(--line)}
+.top{display:flex;align-items:center;gap:12px}
+.lbl{flex:1;min-width:0}.lbl b{display:block;font-weight:600}.lbl span{color:var(--mute);font-size:14px}
+.cnt{font-size:17px;font-weight:600;min-width:20px;text-align:right}
+.cal{text-decoration:none;font-size:16px;padding:2px 4px}
+.x{border:0;background:none;color:var(--mute);font-size:18px;padding:0 4px;cursor:pointer}
+.bar{display:flex;height:4px;border-radius:99px;background:var(--line);margin:8px 0 0;overflow:hidden}
+.bar i{display:block;height:100%}.by{background:var(--g)}.bn{background:var(--r)}
+.cnt em{font-style:normal;font-size:13px;margin-left:6px}.cy{color:var(--g)}.cn{color:var(--r)}
+.vb{display:flex;gap:8px;margin-top:10px}
+.vb button{flex:1;font:inherit;font-weight:600;padding:9px;border-radius:10px;border:1.5px solid var(--line);background:transparent;color:var(--ink);cursor:pointer}
+.vb .vy.on{background:var(--g);border-color:var(--g);color:#fff}.vb .vn.on{background:var(--r);border-color:var(--r);color:#fff}
+.lead .lbl b{color:var(--g)}
+.names{margin:8px 0 0;font-size:13px;color:var(--mute)}
+.foot{display:flex;justify-content:space-between;color:var(--mute);font-size:13px;border-top:1px solid var(--line);padding-top:10px;margin-top:2px}
+.foot a{color:var(--g);cursor:pointer;margin-left:12px}
+form{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+form label{font-size:13px;color:var(--mute);display:flex;flex-direction:column;gap:3px}.full{grid-column:1/-1}
+input{font:inherit;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);width:100%;box-sizing:border-box}
+button.add{font:inherit;border:0;background:var(--g);color:#fff;border-radius:10px;padding:10px;cursor:pointer}
+.msg{color:var(--mute);font-size:14px;padding:14px 0}
+</style>
+</head>
+<body>
+<main>
+<div class="poll">
+<h1>🎸 Which dates work for you?</h1>
+<p class="hint">Vote Yes or No on each date.</p>
+<div id="list"></div>
+<div class="foot"><span id="count"></span><span id="links"></span></div>
+<div id="admin"></div>
+</div>
+</main>
+<script>
+var DAYS=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+var S={opts:[],votes:[],loaded:false,name:localStorage.getItem("bandName")||"",key:sessionStorage.getItem("bandKey")||"",admin:false};
+function $(i){return document.getElementById(i)}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+function parse(o){var p=o.date.split("-"),t=o.time.split(":");return new Date(+p[0],+p[1]-1,+p[2],+t[0],+t[1])}
+function endOf(o){return new Date(parse(o).getTime()+(o.hours||3)*3600000)}
+function fmtT(d){var h=d.getHours(),m=d.getMinutes();return (h%12||12)+(m?":"+("0"+m).slice(-2):"")+(h<12?" AM":" PM")}
+function pad(n){return ("0"+n).slice(-2)}
+function gcal(o){function f(d){return d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+"T"+pad(d.getHours())+pad(d.getMinutes())+"00"}
+ return "https://calendar.google.com/calendar/render?action=TEMPLATE&text="+encodeURIComponent("Band jam (proposed)")+"&dates="+f(parse(o))+"/"+f(endOf(o))}
+function api(method,path,body,admin){var h={"content-type":"application/json"};if(admin)h["x-admin-key"]=S.key;
+ return fetch("/api/"+path,{method:method,headers:h,body:body?JSON.stringify(body):undefined}).then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||"Error");return j})})}
+function load(){return api("GET","state").then(function(s){S.opts=s.options;S.votes=s.votes;S.loaded=true;render()}).catch(function(){S.loaded=true;render()})}
+function ask(){var n=(prompt("Your name (so the band can see your votes):",S.name)||"").trim();if(n){S.name=n.slice(0,40);localStorage.setItem("bandName",S.name)}render();return S.name}
+function mine(){var me=S.name.toLowerCase();for(var i=0;i<S.votes.length;i++)if(S.votes[i].name.toLowerCase()===me)return S.votes[i].v;return {}}
+function vote(oid,val){if(!S.name&&!ask())return;var cur=mine()[oid];
+ api("POST","vote",{name:S.name,optionId:oid,value:cur===val?null:val}).then(load).catch(function(e){alert(e.message)})}
+function login(){var k=prompt("Organizer password:");if(!k)return;S.key=k;api("POST","admin",{},true).then(function(){S.admin=true;sessionStorage.setItem("bandKey",k);render()}).catch(function(e){S.key="";alert(e.message)})}
+function addOpt(e){e.preventDefault();api("POST","option",{date:$("fd").value,time:$("ft").value,hours:$("fh").value},true).then(function(){$("addf").reset();load()}).catch(function(e){alert(e.message)})}
+function render(){
+ var L=$("list");
+ if(!S.loaded){L.innerHTML='<div class="msg">Loading…</div>';return}
+ if(!S.opts.length){L.innerHTML='<div class="msg">No dates yet.</div>'}
+ var sorted=S.opts.slice().sort(function(a,b){return parse(a)-parse(b)}),total=S.votes.length,my=mine(),cnt={},top=0;
+ sorted.forEach(function(o){cnt[o.id]=S.votes.filter(function(v){return v.v[o.id]==="y"}).length;if(cnt[o.id]>top)top=cnt[o.id]});
+ var h="";
+ function who(oid,val){return S.votes.filter(function(v){return v.v[oid]===val}).map(function(v){return esc(v.name)})}
+ sorted.forEach(function(o){var d=parse(o),m=my[o.id],y=who(o.id,"y"),n=who(o.id,"n");
+  h+='<div class="opt'+(top&&y.length===top?" lead":"")+'"><div class="top"><div class="lbl"><b>'+DAYS[d.getDay()]+" "+d.getDate()+" "+MON[d.getMonth()]+'</b><span>'+fmtT(d)+" – "+fmtT(endOf(o))+'</span></div>'
+  +'<a class="cal" target="_blank" rel="noopener" title="Add to Google Calendar" href="'+gcal(o)+'">📅</a>'
+  +(S.admin?'<button class="x" data-del="'+o.id+'" title="Remove">×</button>':"")
+  +'<span class="cnt"><em class="cy">'+y.length+' yes</em> <em class="cn">'+n.length+' no</em></span></div>'
+  +'<div class="bar"><i class="by" style="width:'+(total?y.length/total*100:0)+'%"></i><i class="bn" style="width:'+(total?n.length/total*100:0)+'%"></i></div>'
+  +'<div class="vb"><button class="vy'+(m==="y"?" on":"")+'" data-o="'+o.id+'" data-v="y">Yes</button><button class="vn'+(m==="n"?" on":"")+'" data-o="'+o.id+'" data-v="n">No</button></div>'
+  +((y.length||n.length)?'<div class="names">'+(y.length?'<b class="cy">Yes:</b> '+y.join(", "):"")+(y.length&&n.length?" · ":"")+(n.length?'<b class="cn">No:</b> '+n.join(", "):"")+'</div>':"")+'</div>'});
+ if(S.opts.length)L.innerHTML=h;
+ $("count").textContent=total+(total===1?" person has":" people have")+" voted";
+ $("links").innerHTML='<a id="chg">'+(S.name?"Voting as "+esc(S.name):"Set name")+'</a>'+(S.admin?"":'<a id="org">Organizer</a>');
+ $("chg").onclick=ask;if($("org"))$("org").onclick=login;
+ $("admin").innerHTML=S.admin?'<form id="addf"><label>Date<input type="date" id="fd" required></label><label>Start time<input type="time" id="ft" value="19:00" required></label><label class="full">Length (hours)<input type="number" id="fh" value="3" min="0.5" max="12" step="0.5"></label><button class="add full" type="submit">Add option</button></form>':"";
+ if(S.admin)$("addf").onsubmit=addOpt;
+ [].forEach.call(L.querySelectorAll("button[data-v]"),function(b){b.onclick=function(){vote(b.dataset.o,b.dataset.v)}});
+ [].forEach.call(L.querySelectorAll(".cal"),function(a){a.onclick=function(e){e.stopPropagation()}});
+ [].forEach.call(L.querySelectorAll("button[data-del]"),function(b){b.onclick=function(e){e.stopPropagation();if(confirm("Remove this option?"))api("DELETE","option/"+b.dataset.del,null,true).then(load)}});
+}
+if(S.key)api("POST","admin",{},true).then(function(){S.admin=true;render()}).catch(function(){S.key="";sessionStorage.removeItem("bandKey")});
+render();load();setInterval(load,20000);
+</script>
+</body>
+</html>
+
+
+
